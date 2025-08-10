@@ -1,0 +1,19 @@
+# General
+.DS_Store
+
+# Node
+node_modules/
+**/node_modules/
+
+# Android build artifacts
+*.apk
+android-sdk/
+**/build/
+.gradle/
+**/.gradle/
+my-car-service-app/android/app/build/
+
+# Expo/Metro
+.expo/
+.expo-shared/
+
