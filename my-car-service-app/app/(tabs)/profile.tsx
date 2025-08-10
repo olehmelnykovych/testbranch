@@ -3,6 +3,8 @@ import { Alert, Button, FlatList, StyleSheet, TextInput, View as RNView } from '
 import { Text, View } from '@/components/Themed';
 import { Vehicle } from '@/lib/types';
 import { addVehicle, deleteVehicle, listVehicles, updateVehicle } from '@/lib/storage';
+import { signOut } from '@/lib/auth';
+import { router } from 'expo-router';
 
 export default function ProfileScreen() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -53,9 +55,17 @@ export default function ProfileScreen() {
     await load();
   }
 
+  async function onSignOut() {
+    await signOut();
+    router.replace('/(auth)/login');
+  }
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>My Profile</Text>
+      <RNView style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Text style={styles.title}>My Profile</Text>
+        <Button title="Sign out" onPress={onSignOut} />
+      </RNView>
       <Text style={styles.sectionTitle}>Add Vehicle</Text>
       <RNView style={styles.formRow}>
         <TextInput placeholder="Name (e.g. Family Car)" value={name} onChangeText={setName} style={styles.input} />
