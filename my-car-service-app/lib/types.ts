@@ -17,10 +17,21 @@ export type ServiceRecord = {
   notificationId?: string; // expo notifications id if scheduled
 };
 
+export type Vehicle = {
+  id: string;
+  name: string;
+  make?: string;
+  model?: string;
+  year?: number;
+  plate?: string;
+};
+
 export type PersistedState = {
   services: ServiceRecord[];
+  vehicles: Vehicle[];
 };
 
 export const DEFAULT_STATE: PersistedState = {
   services: [],
+  vehicles: [],
 };

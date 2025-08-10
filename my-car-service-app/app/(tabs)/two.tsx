@@ -1,9 +1,9 @@
 import { useCallback, useState } from 'react';
-import { FlatList, RefreshControl, StyleSheet } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { FlatList, RefreshControl, StyleSheet, Pressable, View as RNView, Alert } from 'react-native';
+import { useFocusEffect, Link } from 'expo-router';
 import { Text, View } from '@/components/Themed';
 import { ServiceRecord } from '@/lib/types';
-import { loadState } from '@/lib/storage';
+import { deleteService, loadState } from '@/lib/storage';
 
 export default function HistoryScreen() {
   const [services, setServices] = useState<ServiceRecord[]>([]);
@@ -29,6 +29,13 @@ export default function HistoryScreen() {
     setRefreshing(false);
   }, []);
 
+  async function onDelete(id: string) {
+    Alert.alert('Delete service', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => { await deleteService(id); await load(); } },
+    ]);
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Service History</Text>
@@ -43,6 +50,14 @@ export default function HistoryScreen() {
             <Text>{new Date(item.serviceDateIso).toLocaleString()}</Text>
             {item.odometerKm != null && <Text>Odometer: {item.odometerKm} km</Text>}
             {item.notes ? <Text numberOfLines={3}>Notes: {item.notes}</Text> : null}
+            <RNView style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+              <Link href={{ pathname: '/modal', params: { id: item.id } }} asChild>
+                <Pressable><Text style={styles.link}>Edit</Text></Pressable>
+              </Link>
+              <Pressable onPress={() => onDelete(item.id)}>
+                <Text style={[styles.link, { color: '#c0392b' }]}>Delete</Text>
+              </Pressable>
+            </RNView>
           </View>
         )}
         ListEmptyComponent={<View style={styles.empty}><Text>No history yet.</Text></View>}
@@ -56,5 +71,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: 'bold' },
   card: { padding: 12, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: '#ccc', gap: 4, marginTop: 8 },
   cardTitle: { fontSize: 16, fontWeight: '600' },
+  link: { color: '#0a7ea4', fontWeight: '600' },
   empty: { alignItems: 'center', marginTop: 40 },
 });

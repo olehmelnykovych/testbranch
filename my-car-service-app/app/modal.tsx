@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { Platform, StyleSheet, TextInput, Button, View as RNView } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Platform, StyleSheet, TextInput, Button, View as RNView, Alert } from 'react-native';
 import { Text, View } from '@/components/Themed';
-import { addService } from '@/lib/storage';
+import { addService, deleteService, updateService, loadState } from '@/lib/storage';
 import { ServiceRecord, ServiceType } from '@/lib/types';
-import { scheduleReminder, ensureNotificationPermissions } from '@/lib/notifications';
-import { router } from 'expo-router';
+import { scheduleReminder, ensureNotificationPermissions, cancelReminder } from '@/lib/notifications';
+import { router, useLocalSearchParams } from 'expo-router';
+import { listVehicles } from '@/lib/storage';
 
 const SERVICE_TYPES: ServiceType[] = [
   'Oil Change',
@@ -16,22 +17,48 @@ const SERVICE_TYPES: ServiceType[] = [
 ];
 
 export default function AddServiceModal() {
+  const params = useLocalSearchParams<{ id?: string }>();
+  const editingId = params.id as string | undefined;
+
   const [vehicleName, setVehicleName] = useState('');
   const [serviceType, setServiceType] = useState<ServiceType>('Oil Change');
   const [serviceDate, setServiceDate] = useState<string>(new Date().toISOString());
   const [odometerKm, setOdometerKm] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [nextReminder, setNextReminder] = useState<string>('');
+  const [notificationId, setNotificationId] = useState<string | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
+  const [vehicleOptions, setVehicleOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    listVehicles().then((vs) => setVehicleOptions(vs.map((v) => v.name)));
+  }, []);
+
+  useEffect(() => {
+    if (!editingId) return;
+    (async () => {
+      const state = await loadState();
+      const rec = state.services.find((s) => s.id === editingId);
+      if (rec) {
+        setVehicleName(rec.vehicleName);
+        setServiceType(rec.serviceType);
+        setServiceDate(rec.serviceDateIso);
+        setOdometerKm(rec.odometerKm != null ? String(rec.odometerKm) : '');
+        setNotes(rec.notes ?? '');
+        setNextReminder(rec.nextReminderIso ?? '');
+        setNotificationId(rec.notificationId);
+      }
+    })();
+  }, [editingId]);
 
   async function onSave() {
     if (!vehicleName.trim()) return;
     setSubmitting(true);
-    let notificationId: string | undefined;
+    let notifId = notificationId;
     if (nextReminder) {
       const ok = await ensureNotificationPermissions();
       if (ok) {
-        notificationId = await scheduleReminder(
+        notifId = await scheduleReminder(
           nextReminder,
           `${serviceType} reminder for ${vehicleName}`
         );
@@ -39,24 +66,42 @@ export default function AddServiceModal() {
     }
 
     const record: ServiceRecord = {
-      id: `${Date.now()}`,
+      id: editingId ?? `${Date.now()}`,
       vehicleName: vehicleName.trim(),
       serviceType,
       serviceDateIso: serviceDate,
       odometerKm: odometerKm ? Number(odometerKm) : undefined,
       notes: notes || undefined,
       nextReminderIso: nextReminder || undefined,
-      notificationId,
+      notificationId: notifId,
     };
 
-    await addService(record);
+    if (editingId) {
+      await updateService(record);
+    } else {
+      await addService(record);
+    }
     setSubmitting(false);
     router.back();
   }
 
+  async function onDelete() {
+    if (!editingId) return;
+    Alert.alert('Delete service', 'Are you sure you want to delete this service?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          await cancelReminder(notificationId);
+          await deleteService(editingId);
+          router.back();
+        }
+      }
+    ]);
+  }
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Add Service</Text>
+      <Text style={styles.title}>{editingId ? 'Edit Service' : 'Add Service'}</Text>
       <RNView style={styles.field}> 
         <Text>Vehicle</Text>
         <TextInput
@@ -64,7 +109,16 @@ export default function AddServiceModal() {
           value={vehicleName}
           onChangeText={setVehicleName}
           style={styles.input}
+          list="vehicleOptions"
         />
+        {/* datalist for web */}
+        {Platform.OS === 'web' ? (
+          <datalist id="vehicleOptions">
+            {vehicleOptions.map((v) => (
+              <option key={v} value={v} />
+            ))}
+          </datalist>
+        ) : null}
       </RNView>
       <RNView style={styles.field}> 
         <Text>Service Type</Text>
@@ -115,7 +169,10 @@ export default function AddServiceModal() {
           autoCapitalize="none"
         />
       </RNView>
-      <Button title={submitting ? 'Saving...' : 'Save Service'} onPress={onSave} disabled={submitting} />
+      <RNView style={{ flexDirection: 'row', gap: 12 }}>
+        <Button title={submitting ? 'Saving...' : 'Save Service'} onPress={onSave} disabled={submitting} />
+        {editingId ? <Button title="Delete" color="#c0392b" onPress={onDelete} /> : null}
+      </RNView>
     </View>
   );
 }
